@@ -1,6 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(MoodSyncApp());
@@ -10,7 +11,6 @@ class MoodSyncApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
       title: 'MoodSync',
       theme: ThemeData(primarySwatch: Colors.blue),
       home: MoodSelectionScreen(),
@@ -19,47 +19,60 @@ class MoodSyncApp extends StatelessWidget {
 }
 
 class MoodSelectionScreen extends StatelessWidget {
-  final List<Map<String, dynamic>> moods = [
-    {"name": "Happy", "icon": Icons.sentiment_satisfied},
-    {"name": "Sad", "icon": Icons.sentiment_dissatisfied},
-    {"name": "Motivated", "icon": Icons.flash_on},
-    {"name": "Relaxed", "icon": Icons.self_improvement},
+
+  final List<Map<String, String>> moods = [
+    {"mood": "Happy", "emoji": "😊"},
+    {"mood": "Sad", "emoji": "😞"},
+    {"mood": "Motivated", "emoji": "⚡"},
+    {"mood": "Relaxed", "emoji": "🧘"},
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Select Your Mood")),
-      body: GridView.builder(
-        padding: EdgeInsets.all(16),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-        ),
-        itemCount: moods.length,
-        itemBuilder: (context, index) {
-          return GestureDetector(
-            onTap: () {
+      appBar: AppBar(
+        title: Text("Select Your Mood"),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.favorite),
+            onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => QuoteScreen(mood: moods[index]["name"]),
-                ),
+                MaterialPageRoute(builder: (context) => FavoritesScreen()),
               );
             },
-            child: Card(
-              elevation: 4,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(moods[index]["icon"], size: 50, color: Colors.blue),
-                  SizedBox(height: 10),
-                  Text(
-                    moods[index]["name"],
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          )
+        ],
+      ),
+      body: GridView.builder(
+        padding: EdgeInsets.all(16),
+        gridDelegate:
+        SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2),
+        itemCount: moods.length,
+        itemBuilder: (context, index) {
+          return Card(
+            elevation: 4,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        QuotesScreen(moods[index]["mood"]!),
                   ),
-                ],
+                );
+              },
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(moods[index]["emoji"]!,
+                        style: TextStyle(fontSize: 40)),
+                    SizedBox(height: 10),
+                    Text(moods[index]["mood"]!,
+                        style: TextStyle(fontSize: 18))
+                  ],
+                ),
               ),
             ),
           );
@@ -69,16 +82,17 @@ class MoodSelectionScreen extends StatelessWidget {
   }
 }
 
-class QuoteScreen extends StatefulWidget {
+class QuotesScreen extends StatefulWidget {
   final String mood;
 
-  QuoteScreen({required this.mood});
+  QuotesScreen(this.mood);
 
   @override
-  _QuoteScreenState createState() => _QuoteScreenState();
+  _QuotesScreenState createState() => _QuotesScreenState();
 }
 
-class _QuoteScreenState extends State<QuoteScreen> {
+class _QuotesScreenState extends State<QuotesScreen> {
+
   List quotes = [];
   bool isLoading = true;
 
@@ -88,35 +102,26 @@ class _QuoteScreenState extends State<QuoteScreen> {
     fetchQuotes();
   }
 
-  Future<void> fetchQuotes() async {
+  fetchQuotes() async {
     final response =
-        await http.get(Uri.parse("https://zenquotes.io/api/quotes"));
+    await http.get(Uri.parse("https://zenquotes.io/api/quotes"));
 
     if (response.statusCode == 200) {
-      List allQuotes = json.decode(response.body);
-
-      // Simple mood-based filtering (basic keyword match)
-      List filtered = allQuotes.where((quote) {
-        String text = quote['q'].toString().toLowerCase();
-        if (widget.mood == "Happy") {
-          return text.contains("happy") || text.contains("joy");
-        } else if (widget.mood == "Sad") {
-          return text.contains("life") || text.contains("hope");
-        } else if (widget.mood == "Motivated") {
-          return text.contains("success") || text.contains("dream");
-        } else if (widget.mood == "Relaxed") {
-          return text.contains("peace") || text.contains("calm");
-        }
-        return true;
-      }).toList();
-
       setState(() {
-        quotes = filtered.isEmpty ? allQuotes : filtered;
+        quotes = json.decode(response.body);
         isLoading = false;
       });
-    } else {
-      throw Exception("Failed to load quotes");
     }
+  }
+
+  saveQuote(String quote) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> favs = prefs.getStringList("favorites") ?? [];
+    favs.add(quote);
+    prefs.setStringList("favorites", favs);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Quote Saved")));
   }
 
   @override
@@ -128,20 +133,89 @@ class _QuoteScreenState extends State<QuoteScreen> {
       body: isLoading
           ? Center(child: CircularProgressIndicator())
           : ListView.builder(
-              itemCount: quotes.length,
-              itemBuilder: (context, index) {
-                return Card(
-                  margin: EdgeInsets.all(10),
-                  child: ListTile(
-                    title: Text(
-                      quotes[index]['q'],
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text("- ${quotes[index]['a']}"),
-                  ),
-                );
-              },
+        itemCount: quotes.length,
+        itemBuilder: (context, index) {
+
+          String quote =
+              quotes[index]["q"] + " - " + quotes[index]["a"];
+
+          return Card(
+            margin: EdgeInsets.all(10),
+            child: ListTile(
+              title: Text(quotes[index]["q"]),
+              subtitle: Text("- ${quotes[index]["a"]}"),
+              trailing: IconButton(
+                icon: Icon(Icons.favorite_border),
+                onPressed: () {
+                  saveQuote(quote);
+                },
+              ),
             ),
+          );
+        },
+      ),
     );
   }
 }
+
+class FavoritesScreen extends StatefulWidget {
+  @override
+  _FavoritesScreenState createState() => _FavoritesScreenState();
+}
+
+class _FavoritesScreenState extends State<FavoritesScreen> {
+
+  List<String> favorites = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadFavorites();
+  }
+
+  loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      favorites = prefs.getStringList("favorites") ?? [];
+    });
+  }
+
+  removeQuote(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    favorites.removeAt(index);
+
+    prefs.setStringList("favorites", favorites);
+
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Favorite Quotes"),
+      ),
+      body: favorites.isEmpty
+          ? Center(child: Text("No favorites yet"))
+          : ListView.builder(
+        itemCount: favorites.length,
+        itemBuilder: (context, index) {
+          return Card(
+            margin: EdgeInsets.all(10),
+            child: ListTile(
+              title: Text(favorites[index]),
+              trailing: IconButton(
+                icon: Icon(Icons.delete),
+                onPressed: () {
+                  removeQuote(index);
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
