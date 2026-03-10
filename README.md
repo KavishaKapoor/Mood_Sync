@@ -20,4 +20,17 @@ The application successfully retrieves JSON data from the API and dynamically di
 They are attached separately as 
 - Mood.png
 - Loading.png
-- Quotes.png 
+
+- Quotes.png
+
+
+## ALA 3 Update
+Updated on 10th March, 2026 10:54pm
+This version of the MoodSync app includes local data storage using SharedPreferences.
+
+Users can now:
+- Save favorite quotes
+- Retrieve saved quotes
+- Delete quotes from favorites
+
+This demonstrates storing, retrieving, and updating local data in Flutter.
