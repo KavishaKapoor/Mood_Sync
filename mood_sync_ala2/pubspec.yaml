@@ -1,0 +1,14 @@
+name: mood_sync
+description: Mood-based quote recommendation app
+version: 1.0.0
+
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^0.13.6
+
+flutter:
+  uses-material-design: true
